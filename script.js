@@ -1,31 +1,121 @@
-'use strict';
-const $=id=>document.getElementById(id);
-// Explicit, small-number problems keep all answers between zero and ten.
-const make=(op,pairs)=>pairs.map(([a,b])=>({op,a,b,answer:op==='add'?a+b:op==='sub'?a-b:op==='mul'?a*b:a/b}));
-const bank=[
- ...make('add',[[1,1],[1,2],[1,3],[1,4],[2,2],[2,3],[2,4],[2,5],[3,3],[3,4],[3,5],[4,4],[4,5],[5,5]]),
- ...make('sub',[[2,1],[3,1],[3,2],[4,1],[4,2],[4,4],[5,2],[5,3],[6,2],[6,3],[7,4],[8,3],[9,4],[10,5]]),
- ...make('mul',[[1,2],[1,3],[1,4],[1,5],[2,2],[2,3],[2,4],[2,5],[3,2],[3,3],[4,2]]),
- ...make('div',[[2,2],[3,3],[4,2],[4,4],[6,2],[6,3],[8,2],[8,4],[9,3],[10,2],[10,5]])
-].map((q,id)=>({...q,id}));
-let index=0,count=0,done=false,busy=false,voice=false,timer,session=[],previous=[];
-function shuffle(items){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-// Every session includes all four operations plus a fifth random question.
-// Exclude the previous session so consecutive sessions never repeat questions.
-function newSession(){clearTimeout(timer);const pool=bank.filter(q=>!previous.includes(q.id));const chosen=['add','sub','mul','div'].map(op=>shuffle(pool.filter(q=>q.op===op))[0]);chosen.push(shuffle(pool.filter(q=>!chosen.includes(q)))[0]);session=shuffle(chosen);previous=session.map(q=>q.id);index=0;if($('win').open)$('win').close();start()}
-function problem(){return session[index]}
-function say(t,force=false){if(!voice&&!force)return;if(!('speechSynthesis'in window)){$('feedback').textContent='Voice is unavailable. Follow the pictures and text.';return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-IN';u.rate=.8;speechSynthesis.speak(u)}
-function dots(n,cls='dotgroup',cross=0){const box=document.createElement('div');box.className=cls;for(let i=0;i<n;i++){const d=document.createElement('span');d.className='mathdot'+(i>=n-cross?' crossed':'');d.setAttribute('aria-hidden','true');box.append(d)}return box}
-function group(n,blue=false){const wrap=document.createElement('div');wrap.append(dots(n,'dotgroup'+(blue?' blue':'')));const label=document.createElement('span');label.className='numeral';label.textContent=n;wrap.append(label);return wrap}
-function sign(s){const e=document.createElement('span');e.className='operator';e.textContent=s;return e}
-function question(p){return p.op==='count'?'How many dots can you see?':p.op==='add'?`${p.a} plus ${p.b}. How many altogether?`:p.op==='sub'?`${p.a} take away ${p.b}. How many are left?`:p.op==='mul'?`${p.a} groups of ${p.b}. How many altogether?`:`Share ${p.a} dots between ${p.b} plates. How many on each plate?`}
-function draw(hint=false){const p=problem(),box=$('problem');box.replaceChildren();box.setAttribute('aria-label',question(p));if(p.op==='count')box.append(dots(p.a));if(p.op==='add')box.append(group(p.a),sign('+'),group(p.b,true),sign('='),sign('?'));if(p.op==='sub'){if(hint)box.append(dots(p.a,'dotgroup',p.b),sign('→'),sign('?'));else box.append(group(p.a),sign('−'),group(p.b,true),sign('='),sign('?'))}if(p.op==='mul'){const groups=document.createElement('div');groups.className='groups';for(let i=0;i<p.a;i++)groups.append(dots(p.b));box.append(groups,sign('='),sign('?'))}if(p.op==='div'){box.append(group(p.a),sign('→'));const plates=document.createElement('div');plates.className='groups';for(let i=0;i<p.b;i++){const plate=dots(hint?p.answer:0,'plate');const label=document.createElement('small');label.textContent=hint?'Count this plate':`Plate ${i+1}`;plate.append(label);plates.append(plate)}box.append(plates)}}
-function navigation(){ $('levels').replaceChildren();for(let i=0;i<5;i++){const badge=document.createElement('span');badge.className='session-step'+(i===index?' current':'')+(i<index?' passed':'');badge.textContent=i<index?'✓':String(i+1);badge.setAttribute('aria-label',`Question ${i+1}${i<index?' completed':i===index?' current':''}`);$('levels').append(badge)}}
-function update(){ $('count').textContent=count;$('answerDots').replaceChildren();for(let i=0;i<count;i++){const d=document.createElement('span');d.className='mathdot';$('answerDots').append(d)}$('answerDots').setAttribute('aria-label',`${count} bounces in your answer`);$('undo').disabled=done||busy||count===0;$('clear').disabled=done||busy;$('check').disabled=done||busy;$('ball').disabled=done;}
-function start(){clearTimeout(timer);if('speechSynthesis'in window)speechSynthesis.cancel();count=0;busy=false;done=false;$('ball').classList.remove('hop');$('next').hidden=true;$('explanation').textContent='';$('feedback').textContent='Bounce your answer, then press Check answer.';$('badge').textContent='MATHS ADVENTURE';$('prompt').textContent=question(problem());$('roundLabel').textContent=`Question ${index+1} of 5`;$('description').textContent='Five little puzzles. One big celebration!';$('flowers').textContent='🌼'.repeat(index)||'🌱';navigation();draw();update();say($('prompt').textContent)}
-function bounce(){if(done||busy)return;if(count>=12){$('feedback').textContent='Use −1 or Clear to change your answer.';return}count++;busy=true;$('ball').classList.remove('hop');void $('ball').offsetWidth;$('ball').classList.add('hop');update();say(String(count));timer=setTimeout(()=>{busy=false;$('ball').classList.remove('hop');update()},420)}
-$('ball').onclick=bounce;$('ball').onkeydown=e=>{if(e.repeat&&(e.key===' '||e.key==='Enter'))e.preventDefault()};$('undo').onclick=()=>{if(!done&&!busy){count=Math.max(0,count-1);update()}};$('clear').onclick=()=>{if(!done&&!busy){count=0;update()}};
-$('check').onclick=()=>{if(done||busy)return;const p=problem();if(count===p.answer){done=true;$('feedback').textContent=p.answer===0?'Exactly! Nothing is left, so the answer is zero.':`Well done! The answer is ${p.answer}.`;$('flowers').textContent='🌼'.repeat(index+1);$('next').textContent=index<4?'Next puzzle →':'Celebrate! ★';$('next').hidden=false;navigation();update();if(index===4)celebrate()}else{$('feedback').textContent='Let’s look again. Use the picture or “Show me how”, then change your bounces.'}say($('feedback').textContent)};
-$('hint').onclick=()=>{const p=problem();draw(true);$('explanation').textContent=p.op==='count'?'Touch each dot with your finger and count it once.':p.op==='add'?'Count all the dots in both groups together.':p.op==='sub'?'The crossed-out dots were taken away. Count only the dots that remain.':p.op==='mul'?'Each group has the same number. Count all the dots across all groups.':'The dots are now shared equally. Count the dots on just ONE plate.';say($('explanation').textContent)};
-function celebrate(){ $('win').showModal();$('confetti').replaceChildren();for(let i=0;i<45;i++){const c=document.createElement('span');c.style.left=Math.random()*100+'%';c.style.background=['#e89c48','#699c90','#e98b95','#9f89cd'][i%4];c.style.animationDelay=Math.random()*1.2+'s';c.style.setProperty('--turn',Math.random()*720+'deg');$('confetti').append(c)}$('playAgain').focus()}
-$('next').onclick=()=>{if(!done)return;if(index<4){index++;start()}else celebrate()};$('playAgain').onclick=newSession;$('closeWin').onclick=()=>$('win').close();$('listen').onclick=()=>say($('prompt').textContent,true);$('voice').onclick=()=>{voice=!voice;$('voice').setAttribute('aria-pressed',String(voice));$('voice').textContent=voice?'🔊 Voice on':'🔇 Voice off';if(voice)say($('prompt').textContent);else if('speechSynthesis'in window)speechSynthesis.cancel()};$('reset').onclick=newSession;newSession();
+const $ = id => document.getElementById(id);
+const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(p => p[1]);
+const pics = (n, e) => e.repeat(n);
+const THINGS = ['🍎', '🍓', '⭐', '🐥', '🍪', '🎈'];
+
+let voiceOn = true, qs = [], idx = 0, flowers = 0, locked = false, lastSums = [];
+
+/* Simple words for ages 2-4: Add, Take Away, Multiply, Share */
+const make = {
+  add() {
+    const a = rnd(1, 5), b = rnd(1, 5), e = THINGS[rnd(0, 5)];
+    return { title: 'Add', say: `${a} and ${b}. How many in all?`, pic: pics(a, e) + ' ➕ ' + pics(b, e),
+      sum: `${a} + ${b} = ?`, ans: a + b, hint: `Count all the ${e} together.` };
+  },
+  sub() {
+    const a = rnd(2, 9), b = rnd(1, a - 1), e = THINGS[rnd(0, 5)];
+    return { title: 'Take Away', say: `Take away ${b}. How many are left?`, pic: pics(a - b, e) + '<s>' + pics(b, e) + '</s>',
+      sum: `${a} − ${b} = ?`, ans: a - b, hint: 'Count the bright ones. The faded ones went away.' };
+  },
+  mul() {
+    const a = rnd(2, 4), b = rnd(2, 3), e = THINGS[rnd(0, 5)];
+    const groups = Array.from({ length: a }, () => `<span class="grp">${pics(b, e)}</span>`).join('');
+    return { title: 'Multiply', say: `${a} groups with ${b} in each. How many in all?`, pic: groups,
+      sum: `${a} × ${b} = ?`, ans: a * b, hint: 'Count every one in all the groups.' };
+  },
+  div() {
+    const b = rnd(2, 3), c = rnd(2, 4), a = b * c, e = THINGS[rnd(0, 5)];
+    return { title: 'Share', say: `Share ${a} between ${b} friends. How many does each friend get?`, pic: pics(a, e),
+      sum: `${a} ÷ ${b} = ?`, ans: c, hint: `Make ${b} equal piles. Count one pile.` };
+  }
+};
+
+function newSession() {
+  const ops = shuffle(['add', 'sub', 'mul', 'div']);
+  ops.push(['add', 'sub'][rnd(0, 1)]);          // 5th question: an easy one
+  qs = []; const seen = new Set();
+  ops.forEach(op => {
+    let q, tries = 0;
+    do { q = make[op](); tries++; } while ((seen.has(q.sum) || lastSums.includes(q.sum)) && tries < 20);
+    seen.add(q.sum); qs.push(q);
+  });
+  lastSums = [...seen]; idx = 0; flowers = 0;
+  $('done').hidden = true; $('play').hidden = false;
+  show();
+}
+
+function choices(ans) {
+  const set = new Set([ans]);
+  while (set.size < 3) { const v = ans + rnd(-3, 3); if (v >= 0 && v !== ans) set.add(v); }
+  return shuffle([...set]);
+}
+
+function show() {
+  const q = qs[idx]; locked = false;
+  $('title').textContent = q.title;
+  $('say').textContent = q.say;
+  $('picture').innerHTML = q.pic;
+  $('sum').textContent = q.sum;
+  $('hinttext').textContent = '';
+  $('garden').textContent = '🌼'.repeat(flowers);
+  const box = $('options'); box.innerHTML = '';
+  choices(q.ans).forEach(n => {
+    const b = document.createElement('button');
+    b.className = 'opt'; b.type = 'button'; b.textContent = n;
+    b.onclick = () => pick(b, n === q.ans);
+    box.appendChild(b);
+  });
+  speak(`${q.title}. ${q.say}`);
+}
+
+function pick(btn, ok) {
+  if (locked) return;
+  const fb = $('feedback'), g = $('golu');
+  if (ok) {
+    locked = true; flowers++;
+    fb.className = 'good'; g.className = 'golu big happy'; $('msg').textContent = 'Yay! Great job!';
+    fb.hidden = false; confetti(); speak('Yay! Great job!');
+    setTimeout(() => { fb.hidden = true; idx++; idx < qs.length ? show() : finish(); }, 2300);
+  } else {
+    btn.classList.add('wrong'); btn.disabled = true;
+    fb.className = 'bad'; g.className = 'golu big sad'; $('msg').textContent = 'Try again';
+    fb.hidden = false; speak('Oh no. Try again.');
+    setTimeout(() => { fb.hidden = true; }, 1600);
+  }
+}
+
+function confetti() {
+  const bits = ['⭐', '🎈', '🌈', '🌼', '🦋', '🎉'];
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span');
+    s.className = 'bit'; s.textContent = bits[rnd(0, bits.length - 1)];
+    s.style.left = rnd(2, 94) + 'vw'; s.style.setProperty('--t', (1.6 + Math.random() * 1.6) + 's');
+    s.style.animationDelay = (Math.random() * .5) + 's';
+    document.body.appendChild(s); setTimeout(() => s.remove(), 4000);
+  }
+}
+
+function finish() {
+  $('play').hidden = true; $('done').hidden = false;
+  $('flowers').textContent = '🌼'.repeat(flowers);
+  confetti(); speak('Hooray! You did it!');
+}
+
+function speak(t) {
+  if (!voiceOn || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t); u.rate = .85; u.pitch = 1.3;
+  speechSynthesis.speak(u);
+}
+
+$('hint').onclick = () => { $('hinttext').textContent = qs[idx].hint; speak(qs[idx].hint); };
+$('again').onclick = newSession;
+$('voice').onclick = e => {
+  voiceOn = !voiceOn;
+  e.target.textContent = voiceOn ? '🔊 Voice on' : '🔇 Voice off';
+  e.target.setAttribute('aria-pressed', voiceOn);
+  if (!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+};
+
+newSession();
